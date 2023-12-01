@@ -23,10 +23,79 @@ import '@ionic/vue/css/display.css';
 /* Theme variables */
 import './theme/variables.css';
 
-const app = createApp(App)
-  .use(IonicVue)
-  .use(router);
-  
-router.isReady().then(() => {
-  app.mount('#app');
+
+///
+import { Capacitor } from "@capacitor/core";
+import {
+    CapacitorSQLite,
+    SQLiteConnection,
+} from "@capacitor-community/sqlite";
+import { JeepSqlite } from "jeep-sqlite/dist/components/jeep-sqlite";
+
+customElements.define("jeep-sqlite", JeepSqlite);
+console.log(`after customElements.define`);
+
+window.addEventListener("DOMContentLoaded", async () => {
+    try {
+        const platform = Capacitor.getPlatform();
+        const sqlite = new SQLiteConnection(CapacitorSQLite);
+
+        // WEB SPECIFIC FUNCTIONALITY
+        if (platform === "web") {
+            // Create the 'jeep-sqlite' Stencil component
+            const jeepSqliteEl = document.createElement("jeep-sqlite");
+            document.body.appendChild(jeepSqliteEl);
+            await customElements.whenDefined("jeep-sqlite");
+            console.log(`after customElements.whenDefined`);
+
+            // Initialize the Web store
+            await sqlite.initWebStore();
+            console.log(`after initWebStore`);
+        }
+
+        // example: database creation with standard SQLite statements
+        const ret = await sqlite.checkConnectionsConsistency();
+        console.log(`after checkConn`);
+        const isConn = (await sqlite.isConnection("db_vite", false)).result;
+        console.log(`after isConn`);
+        let db = null;
+        if (ret.result && isConn) {
+            db = await sqlite.retrieveConnection("db_vite", false);
+            console.log(`after retrieveConn`);
+        } else {
+            db = await sqlite.createConnection(
+                "db_vite",
+                false,
+                "no-encryption",
+                1,
+                false
+            );
+            console.log(`after createConn`);
+        }
+
+        // manipulate database
+        await db.open();
+        console.log(`db: db_vite opened`);
+        const queryCreateTable = `
+            CREATE TABLE IF NOT EXISTS test (
+                id INTEGER PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL
+            );
+        `;
+        const respCT = await db.execute(queryCreateTable);
+        console.log(`res: ${JSON.stringify(respCT)}`);
+
+        await sqlite.closeConnection("db_vite", false);
+    } catch (e) {
+        console.log((e as any).message);
+    }
+
+    // ionic app initialization
+    const app = createApp(App)
+        .use(IonicVue)
+        .use(router);
+
+    router.isReady().then(() => {
+        app.mount("#app");
+    });
 });
